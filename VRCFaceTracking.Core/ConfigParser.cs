@@ -1,8 +1,11 @@
-﻿using System.Text.Json;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core;
-using VRCFaceTracking.Core.OSC.DataTypes;
 using VRCFaceTracking.Core.Params;
 using VRCFaceTracking.OSC;
 
@@ -47,23 +50,6 @@ namespace VRCFaceTracking
         {
             if (newId == AvatarId || string.IsNullOrEmpty(newId))
                 return;
-
-            var paramList = new List<IParameter>();
-            
-            if (newId.StartsWith("local:"))
-            {
-                foreach (var parameter in UnifiedTracking.AllParameters_v2.Concat(UnifiedTracking.AllParameters_v1).ToArray())
-                    paramList.AddRange(parameter.ResetParam(Array.Empty<Parameter>()));
-
-                // This is a local test avatar, there won't be a config file for it so assume we're using no parameters and just return
-                OnConfigLoaded(paramList.ToArray(), new AvatarConfigSpec()
-                {
-                    id = newId,
-                    name = newId.Substring(10) // Remove "local:sdk_" from the name
-                });
-                AvatarId = newId;
-                return;
-            }
             
             AvatarConfigSpec avatarConfig = null;
             foreach (var userFolder in Directory.GetDirectories(VRChat.VRCOSCDirectory))
@@ -87,10 +73,10 @@ namespace VRCFaceTracking
                 return;
             }
 
-            _logger.LogInformation("Parsing config file for avatar: " + avatarConfig.name);
-            ParamSupervisor.SendQueue.Clear();
+            //_logger.LogInformation("Parsing config file for avatar: " + avatarConfig.name);
             var parameters = avatarConfig.parameters.Where(param => param.input != null).ToArray();
 
+            List<IParameter> paramList = new List<IParameter>();
             foreach (var parameter in UnifiedTracking.AllParameters_v2.Concat(UnifiedTracking.AllParameters_v1).ToArray())
                 paramList.AddRange(parameter.ResetParam(parameters));
 

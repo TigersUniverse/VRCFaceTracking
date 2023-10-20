@@ -12,7 +12,6 @@ using VRCFaceTracking.Contracts.Services;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Library;
 using VRCFaceTracking.Core.OSC;
-using VRCFaceTracking.Core.OSC.DataTypes;
 using VRCFaceTracking.Core.Services;
 using VRCFaceTracking.Models;
 using VRCFaceTracking.Notifications;
@@ -53,19 +52,6 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
-        
-        // Check for a "reset" file in the root of the app directory. If one is found, wipe all files from inside it
-        // and delete the file.
-        var resetFile = Path.Combine(Utils.PersistentDataDirectory, "reset");
-        if (File.Exists(resetFile))
-        {
-            // Delete everything including files and folders in Utils.PersistentDataDirectory
-            foreach (var file in Directory.EnumerateFiles(Utils.PersistentDataDirectory, "*", SearchOption.AllDirectories))
-            {
-                File.Delete(file);
-            }
-        }
-
 
         Host = Microsoft.Extensions.Hosting.Host.
         CreateDefaultBuilder().
@@ -90,7 +76,6 @@ public partial class App : Application
             services.AddSingleton<ILocalSettingsService, LocalSettingsService>();
             services.AddSingleton<IThemeSelectorService, ThemeSelectorService>();
             services.AddTransient<INavigationViewService, NavigationViewService>();
-            services.AddTransient<GithubService>();
 
             services.AddSingleton<IActivationService, ActivationService>();
             services.AddSingleton<IPageService, PageService>();
@@ -107,7 +92,6 @@ public partial class App : Application
             services.AddSingleton<ConfigParser>();
             services.AddSingleton<UnifiedTracking>();
             services.AddSingleton<ILibManager, UnifiedLibManager>();
-            services.AddTransient<OpenVRService>();
 
             // Views and ViewModels
             services.AddTransient<ModuleRegistryViewModel>();
@@ -118,7 +102,7 @@ public partial class App : Application
             services.AddTransient<OutputViewModel>();
             services.AddTransient<OutputPage>();
             services.AddTransient<SettingsViewModel>();
-            services.AddSingleton<UnifiedTrackingMutator>();
+            services.AddTransient<UnifiedTrackingMutator>();
             services.AddSingleton<RiskySettingsViewModel>();
             services.AddTransient<OscViewModel>();
             services.AddTransient<SettingsPage>();
@@ -127,13 +111,23 @@ public partial class App : Application
             services.AddTransient<ShellPage>();
             services.AddTransient<ShellViewModel>();
             services.AddSingleton<IAvatarInfo, AvatarViewModel>();
-            services.AddSingleton<IParamSupervisor, ParamSupervisor>();
 
             // Configuration
             services.Configure<LocalSettingsOptions>(context.Configuration.GetSection(nameof(LocalSettingsOptions)));
         }).
         Build();
         
+        // Check for a "reset" file in the root of the app directory. If one is found, wipe all files from inside it
+        // and delete the file.
+        var resetFile = Path.Combine(Utils.PersistentDataDirectory, "reset");
+        if (File.Exists(resetFile))
+        {
+            foreach (var file in Directory.GetFiles(Utils.PersistentDataDirectory))
+            {
+                File.Delete(file);
+            }
+        }
+
         var logBuilder = App.GetService<ILoggerFactory>();
         _logger = logBuilder.CreateLogger("App");
 

@@ -14,14 +14,7 @@ public class OscViewModel : ObservableRecipient
     {
         get => _inPort;
         set
-        { 
-            // Ensure we're within the valid range
-            if (value < 0 || value > 65535)
-            {
-                // If we're not, then just set to default which is 9001, This won't be reflected in the UI but saves us crashing
-                value = 9001;
-            }
-
+        {
             _oscService.InPort = value;
             SetProperty(ref _inPort, value);
         }
@@ -32,11 +25,6 @@ public class OscViewModel : ObservableRecipient
         get => _outPort;
         set
         {
-            if (value < 0 || value > 65535)
-            {
-                value = 9000;
-            }
-            
             _oscService.OutPort = value;
             SetProperty(ref _outPort, value);
         }

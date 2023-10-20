@@ -20,6 +20,8 @@ public class ModuleDataService : IModuleDataService
         _identityService = identityService;
         _logger = logger;
     }
+    
+    public ModuleDataService(ILogger<ModuleDataService> logger) => _logger = logger;
 
     private static IEnumerable<InstallableTrackingModule> AllModules()
     {
@@ -27,8 +29,6 @@ public class ModuleDataService : IModuleDataService
         // and get the list of modules.
         var client = new HttpClient();
         var response = client.GetAsync("https://rjlk4u22t36tvqz3bvbkwv675a0wbous.lambda-url.us-east-1.on.aws/modules").Result;
-        if (!response.IsSuccessStatusCode)
-            return new List<InstallableTrackingModule>();
         var content = response.Content.ReadAsStringAsync().Result;
         return JsonConvert.DeserializeObject<List<InstallableTrackingModule>>(content);
     }
@@ -43,6 +43,8 @@ public class ModuleDataService : IModuleDataService
 
     public Task IncrementDownloadsAsync(TrackingModuleMetadata moduleMetadata)
     {
+        if (_identityService == null)
+            return null;
         // send a PATCH request to https://rjlk4u22t36tvqz3bvbkwv675a0wbous.lambda-url.us-east-1.on.aws/downloads with the module ID in the body
         var client = new HttpClient();
         var rating = new RatingObject
@@ -91,6 +93,8 @@ public class ModuleDataService : IModuleDataService
 
     public async Task<int> GetMyRatingAsync(TrackingModuleMetadata moduleMetadata)
     {
+        if (_identityService == null)
+            return -1;
         if (_ratingCache.TryGetValue(moduleMetadata.ModuleId, out var async))
         {
             _logger.LogDebug("Rating for {ModuleId} was cached as {Rating}", moduleMetadata.ModuleId, async);
@@ -125,6 +129,8 @@ public class ModuleDataService : IModuleDataService
 
     public Task SetMyRatingAsync(TrackingModuleMetadata moduleMetadata, int rating)
     {
+        if (_identityService == null)
+            return null;
         // Same format as get but we PUT this time
         var client = new HttpClient();
         var ratingObject = new RatingObject{UserId = _identityService.GetUniqueUserId(), ModuleId = moduleMetadata.ModuleId.ToString(), Rating = rating};
@@ -169,5 +175,4 @@ public class ModuleDataService : IModuleDataService
         }
 
         return installedModules;
-    } 
-}
+    } }

@@ -5,7 +5,8 @@ namespace VRCFaceTracking.Core
 {
     public static class VRChat
     {
-        public static readonly string VRCData = Path.Combine($"{Environment.GetEnvironmentVariable("localappdata")}Low", "VRChat\\VRChat");
+        public static readonly string VRCData = Path.Combine(Environment
+            .GetFolderPath(Environment.SpecialFolder.ApplicationData).Replace("Roaming", "LocalLow"), "VRChat\\VRChat");
         
         public static readonly string VRCOSCDirectory = Path.Combine(VRCData, "OSC");
         
@@ -16,7 +17,7 @@ namespace VRCFaceTracking.Core
             if (regKey == null)
                 return true;    // Assume we already have osc enabled
             
-            var keys = regKey.GetValueNames().Where(x => x.StartsWith("VRC_INPUT_OSC") || x.StartsWith("UI.Settings.Osc"));
+            var keys = regKey.GetValueNames().Where(x => x.ToLower().Contains("osc"));
 
             var wasOscForced = false;
             foreach (var key in keys)

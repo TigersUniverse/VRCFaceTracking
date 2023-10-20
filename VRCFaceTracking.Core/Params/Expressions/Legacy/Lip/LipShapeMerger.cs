@@ -1,6 +1,4 @@
-﻿using VRCFaceTracking.Core.Params.DataTypes;
-
-namespace VRCFaceTracking.Core.Params.Expressions.Legacy.Lip
+﻿namespace VRCFaceTracking.Core.Params.Expressions.Legacy.Lip
 {
     [Obsolete("SRanipal Lip Shapes are being phased out. Please switch to Unified Expressions.")]
     public static class LipShapeMerger
@@ -138,11 +136,11 @@ namespace VRCFaceTracking.Core.Params.Expressions.Legacy.Lip
             GetAllLipShapes().Union(GetOptimizedLipParameters()).ToArray();
 
         private static IEnumerable<EParam> GetOptimizedLipParameters() => MergedShapes
-            .Select(shape => new EParam(shape.Key, exp => 
-                shape.Value.GetBlendedLipShape(exp), 0.0f));
+            .Select(shape => new EParam(exp => 
+                shape.Value.GetBlendedLipShape(exp), shape.Key, 0.0f));
 
         private static IEnumerable<EParam> GetAllLipShapes() =>
             ((SRanipal_LipShape_v2[])Enum.GetValues(typeof(SRanipal_LipShape_v2))).ToList().Select(shape =>
-               new EParam(shape.ToString(), exp => UnifiedSRanMapper.GetTransformedShape(shape, exp), 0.0f));
+               new EParam(exp => UnifiedSRanMapper.GetTransformedShape(shape, exp), shape.ToString(), 0.0f));
     }
 }

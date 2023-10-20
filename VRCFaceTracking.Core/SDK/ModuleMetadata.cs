@@ -12,7 +12,7 @@ public struct ModuleMetadata
     public bool Active
     {
         get => _active;
-        set
+        internal set
         {
             _active = value;
             OnActiveChange?.Invoke(value);

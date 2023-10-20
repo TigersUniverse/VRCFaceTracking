@@ -1,11 +1,10 @@
-﻿using VRCFaceTracking.Core.OSC.DataTypes;
+﻿using VRCFaceTracking.OSC;
 
 namespace VRCFaceTracking.Core.Types
 {
-    [Obsolete("Use Vector2 instead")]
     public class XYParam
     {
-        public BaseParam<float> X, Y;
+        public OSCParams.BaseParam<float> X, Y;
 
         protected Vector2 ParamValue
         {
@@ -16,7 +15,7 @@ namespace VRCFaceTracking.Core.Types
             }
         }
 
-        protected XYParam(BaseParam<float> x, BaseParam<float> y)
+        protected XYParam(OSCParams.BaseParam<float> x, OSCParams.BaseParam<float> y)
         {
             X = x;
             Y = y;

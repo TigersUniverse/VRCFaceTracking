@@ -12,7 +12,7 @@ public interface IOSCService
     bool IsConnected { get; set; }
     
     Action OnMessageDispatched { get; set; }
-    Action<OscMessage> OnMessageReceived { get; set; }
+    Action<OscMessageMeta> OnMessageReceived { get; set; }
 
     Task SaveSettings();
     Task LoadSettings();

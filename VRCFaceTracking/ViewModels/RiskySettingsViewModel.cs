@@ -8,8 +8,13 @@ namespace VRCFaceTracking.ViewModels;
 public class RiskySettingsViewModel : ObservableObject
 {
     private readonly IMainService _mainService;
-    public readonly IParamSupervisor ParamSupervisor;
     private readonly ILogger<RiskySettingsViewModel> _logger;
+
+    public bool AllParametersRelevant
+    {
+        get => _mainService.AllParametersRelevant;
+        set => _mainService.AllParametersRelevant = value;
+    }
 
     private bool _enabled;
     public bool Enabled
@@ -18,10 +23,9 @@ public class RiskySettingsViewModel : ObservableObject
         set => SetProperty(ref _enabled, value);
     }
     
-    public RiskySettingsViewModel(IMainService mainService, IParamSupervisor paramSupervisor, ILogger<RiskySettingsViewModel> logger)
+    public RiskySettingsViewModel(IMainService mainService, ILogger<RiskySettingsViewModel> logger)
     {
         _mainService = mainService;
-        ParamSupervisor = paramSupervisor;
         _logger = logger;
     }
 

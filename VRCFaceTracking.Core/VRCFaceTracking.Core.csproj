@@ -1,20 +1,31 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
     <RootNamespace>VRCFaceTracking.Core</RootNamespace>
     <Platforms>x64</Platforms>
     <Platforms>x64</Platforms>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyVersion>5.1.1.1</AssemblyVersion>
+    <AssemblyVersion>5.0.2.0</AssemblyVersion>
+    <TargetFrameworks>net7.0;netstandard2.1</TargetFrameworks>
+    <LangVersion>11</LangVersion>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="..\fti_osc.dll" Link="fti_osc.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="C:\Windows\System32\vcruntime140.dll" Link="vcruntime140.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Win32.Registry" Version="6.0.0-preview.5.21301.5" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
+    <PackageReference Include="System.Runtime.Loader" Version="4.3.0" />
+    <PackageReference Include="System.Security.Principal.Windows" Version="6.0.0-preview.5.21301.5" />
+    <PackageReference Include="System.Text.Json" Version="8.0.0-preview.4.23259.5" />
   </ItemGroup>
 </Project>

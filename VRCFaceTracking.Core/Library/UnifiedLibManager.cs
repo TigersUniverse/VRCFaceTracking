@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Reflection;
-using System.Runtime.Loader;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Contracts.Services;
 
@@ -35,7 +34,7 @@ public class UnifiedLibManager : ILibManager
     {
         public ExtTrackingModule module;
         public CancellationTokenSource token;
-        public AssemblyLoadContext alc;
+        public ASL alc;
         public Thread thread;
     }
     public static List<Assembly> AvailableModules { get; private set; }
@@ -80,13 +79,16 @@ public class UnifiedLibManager : ILibManager
             var modulePaths = modules.Select(m => m.AssemblyLoadPath);
 
             // Load all modules
-            AvailableModules = LoadAssembliesFromPath(modulePaths.ToArray());
+            List<ASL> asls = LoadAssembliesFromPath(modulePaths.ToArray());
+            AvailableModules = new List<Assembly>();
+            foreach (ASL asl in asls)
+                AvailableModules.Add(asl.Assembly);
 
             // Attempt to initialize the requested runtimes.
             if (AvailableModules != null)
             {
                 _logger.LogDebug("Initializing requested runtimes...");
-                InitRequestedRuntimes(AvailableModules);
+                InitRequestedRuntimes(asls);
             }
             else
             {
@@ -106,37 +108,42 @@ public class UnifiedLibManager : ILibManager
         _initializeWorker.Start();
     }
 
-    private static ExtTrackingModule LoadExternalModule(Assembly dll)
+    private static ExtTrackingModule LoadExternalModule(ASL asl)
     {
-        _logger.LogInformation("Loading External Module " + dll.FullName);
+        _logger.LogInformation("Loading External Module " + asl.Assembly.FullName);
 
         Type module;
         ExtTrackingModule moduleObj;
         try
         {
             // Get the first class that implements ExtTrackingModule
-            module = dll.GetTypes().FirstOrDefault(t => t.IsSubclassOf(typeof(ExtTrackingModule)));
+            module = asl.Assembly.GetTypes().FirstOrDefault(t => t.IsSubclassOf(typeof(ExtTrackingModule)));
             moduleObj = (ExtTrackingModule)Activator.CreateInstance(module);
 
             return moduleObj;
         }
         catch (Exception e)
         {
-            _logger.LogError("Exception loading {dll}. Skipping. {e}", dll.FullName, e);
+            _logger.LogError("Exception loading {dll}. Skipping. {e}", asl.Assembly.FullName, e);
         }
 
         return null;
     }
 
-    public static List<Assembly> LoadAssembliesFromPath(string[] path)
+    public static List<ASL> LoadAssembliesFromPath(string[] path)
     {
-        var returnList = new List<Assembly>();
+        var returnList = new List<ASL>();
         foreach (var dll in path)
         {
             try
             {
-                var alc = new AssemblyLoadContext(dll, true);
-                var loaded = alc.LoadFromAssemblyPath(dll);
+                //var alc = new AssemblyLoadContext(dll, true);
+#if NET5_0_OR_GREATER
+                var asl = new ASL(dll, true);
+#elif NETSTANDARD
+                var asl = new ASL();
+#endif
+                var loaded = asl.LoadFile(dll);
                 
                 var references = loaded.GetReferencedAssemblies();
                 var oldRefs = false;
@@ -158,20 +165,20 @@ public class UnifiedLibManager : ILibManager
                     if (type.BaseType == typeof(ExtTrackingModule))
                     {
                         _logger.LogDebug("{module} properly implements ExtTrackingModule.", type.Name);
-                        returnList.Add(loaded);
+                        returnList.Add(asl);
                     }
                 }
             }
             catch (Exception e)
             {
-                _logger.LogWarning(e.Message + " Assembly not able to be loaded. Skipping.");
+                _logger.LogWarning(" Assembly not able to be loaded. Exception: " + e);
             }
         }
 
         return returnList;
     }
 
-    private static void EnsureModuleThreadStarted(ExtTrackingModule module)
+    private static void EnsureModuleThreadStarted(ExtTrackingModule module, ASL asl)
     {
         if (ModuleThreads.Any(pair => pair.module == module))
             return;
@@ -192,15 +199,18 @@ public class UnifiedLibManager : ILibManager
         {
             module = module,
             token = cts,
-            alc = AssemblyLoadContext.GetLoadContext(module.GetType().Assembly),
+            //alc = AssemblyLoadContext.GetLoadContext(module.GetType().Assembly),
+            alc = asl,
             thread = thread
         };
 
         ModuleThreads.Add(_pair);
     }
 
-    private void AttemptModuleInitialize(ExtTrackingModule module)
+    private void AttemptModuleInitialize(ExtTrackingModule module, ASL asl)
     {
+        if (module == null)
+            return;
         if (!module.Supported.SupportsEye && !module.Supported.SupportsExpression)
         {
             return;
@@ -238,22 +248,22 @@ public class UnifiedLibManager : ILibManager
         module.ModuleInformation.UsingEye = eyeSuccess;
         module.ModuleInformation.UsingExpression = expressionSuccess;
         _dispatcherService.Run(() => { if (!ModuleMetadatas.Contains(module.ModuleInformation)) ModuleMetadatas.Add(module.ModuleInformation); });
-        EnsureModuleThreadStarted(module);
+        EnsureModuleThreadStarted(module, asl);
     }
 
-    private void InitRequestedRuntimes(List<Assembly> moduleType)
+    private void InitRequestedRuntimes(List<ASL> moduleType)
     {
         _logger.LogInformation("Initializing runtimes...");
 
-        foreach (Assembly module in moduleType)
+        foreach (ASL module in moduleType)
         {
             if (EyeStatus > ModuleState.Uninitialized && ExpressionStatus > ModuleState.Uninitialized)
             {
                 break;
             }
-            _logger.LogInformation("Initializing {module}", module.ToString());
+            _logger.LogInformation("Initializing {module}", module.Assembly.ToString());
             var loadedModule = LoadExternalModule(module);
-            AttemptModuleInitialize(loadedModule);
+            AttemptModuleInitialize(loadedModule, module);
         }
 
         if (ModuleThreads.Count == 0)
@@ -303,6 +313,7 @@ public class UnifiedLibManager : ILibManager
             }
 
             modulePair.module.Teardown();
+            modulePair.alc.UnloadAssembly();    //TODO: Verify AppDomain Unloading works in netstandard
             ModuleMetadatas.Remove(modulePair.module.ModuleInformation);
         }
 

@@ -1,46 +1,21 @@
 ﻿using System.IO.Compression;
+using FindClosestString;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using VRCFaceTracking.Core.Helpers;
 using VRCFaceTracking.Core.Models;
 
 namespace VRCFaceTracking.Core.Services;
 
 public class ModuleInstaller
 {
-    private readonly ILogger _logger;
+    private readonly ILogger<ModuleInstaller> _logger;
 
-    public ModuleInstaller(ILoggerFactory loggerFactory)
+    public ModuleInstaller(ILogger<ModuleInstaller> logger)
     {
-        _logger = loggerFactory.CreateLogger("ModuleInstaller");
-        
-        if (!Directory.Exists(Utils.CustomLibsDirectory))
-            Directory.CreateDirectory(Utils.CustomLibsDirectory);
+        _logger = logger;
     }
 
-    // Move a directory using just Copy and Remove as MoveDirectory is unreliable across drives
-    private void MoveDirectory(string source, string dest)
-    {
-        if (!Directory.Exists(dest))
-            Directory.CreateDirectory(dest);
-        
-        // Get files recursively and preserve directory structure
-        foreach (var file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
-        {
-            var path = Path.GetDirectoryName(file);
-            var newPath = path?.Replace(source, dest);
-            if (newPath != null)
-            {
-                Directory.CreateDirectory(newPath);
-                File.Copy(file, Path.Combine(newPath, Path.GetFileName(file)), true);
-            }
-        }
-        
-        // Now we delete the source directory
-        Directory.Delete(source, true);
-    }
-
-    private async Task DownloadModuleToFile(TrackingModuleMetadata moduleMetadata, string filePath)
+    private async Task DownloadToFile(TrackingModuleMetadata moduleMetadata, string filePath)
     {
         using var client = new HttpClient();
         var response = await client.GetAsync(moduleMetadata.DownloadUrl);
@@ -62,9 +37,10 @@ public class ModuleInstaller
         
         // Else we'll try find the one with the closest name to the module using Levenshtein distance
         var targetFileName = Path.GetFileNameWithoutExtension(moduleMetadata.DownloadUrl);
-        var dllFile = dllFiles.Select(x => new { FileName = Path.GetFileNameWithoutExtension(x), Distance = LevenshteinDistance.Calculate(targetFileName, Path.GetFileNameWithoutExtension(x)) }).MinBy(x => x.Distance);
+        var selectedDllFiles = dllFiles.Select(Path.GetFileNameWithoutExtension).ToList();
+        var dllFile = ClosestString.UsingLevenshtein(targetFileName, selectedDllFiles).Item1;
 
-        if (dllFile == null)
+        if (string.IsNullOrEmpty(dllFile))
         {
             _logger.LogError(
                 "Module {module} has no .dll file name specified and no .dll files were found in the extracted zip",
@@ -72,68 +48,16 @@ public class ModuleInstaller
             return null;
         }
         
-        _logger.LogDebug("Module {module} didn't specify a target dll, and contained multiple. Using {dll} as its distance of {distance} was closest to the module name",
-            moduleMetadata.ModuleId, dllFile.FileName, dllFile.Distance);
-        return Path.GetFileName(dllFile.FileName);
+        _logger.LogDebug("Module {module} didn't specify a target dll, and contained multiple. Using {dll}",
+            moduleMetadata.ModuleId, dllFile);
+        return Path.GetFileName(dllFile);
     }
-
-    public async Task<string> InstallLocalModule(string zipPath)
-    {
-        // First, we copy the zip to our custom libs directory
-        var fileName = Path.GetFileName(zipPath);
-        var newZipPath = Path.Combine(Utils.CustomLibsDirectory, fileName);
-        File.Copy(zipPath, newZipPath, true);
-        
-        // Second, we unzip it 
-        var tempDirectory = Path.Combine(Path.GetTempPath(), Path.GetFileNameWithoutExtension(zipPath));
-        if (Directory.Exists(tempDirectory))
-        {
-            Directory.Delete(tempDirectory, true);
-        }
-        Directory.CreateDirectory(tempDirectory);
-        ZipFile.ExtractToDirectory(newZipPath, tempDirectory);
-        File.Delete(newZipPath);
-
-        // Now, we need to find the module.json file and deserialize it
-        var moduleJsonPath = Path.Combine(tempDirectory, "module.json");
-        if (!File.Exists(moduleJsonPath))
-        {
-            _logger.LogError("Module {module} does not contain a module.json file", fileName);
-            Directory.Delete(tempDirectory, true);
-            return null;
-        }
-        
-        var moduleMetadata = JsonConvert.DeserializeObject<TrackingModuleMetadata>(await File.ReadAllTextAsync(moduleJsonPath));
-        if (moduleMetadata == null)
-        {
-            _logger.LogError("Module {module} contains an invalid module.json file", fileName);
-            Directory.Delete(tempDirectory, true);
-            return null;
-        }
-        
-        // Now we move to a directory named after the module id and delete the temp directory
-        var moduleDirectory = Path.Combine(Utils.CustomLibsDirectory, moduleMetadata.ModuleId.ToString());
-        if (Directory.Exists(moduleDirectory))
-            Directory.Delete(moduleDirectory, true);
-        MoveDirectory(tempDirectory, moduleDirectory);
-        
-        // Now we need to find the module's dll
-        moduleMetadata.DllFileName ??= TryFindModuleDll(moduleDirectory, moduleMetadata);
-        if (moduleMetadata.DllFileName == null)
-        {
-            _logger.LogError("Module {module} has no .dll file name specified and no .dll files were found in the extracted zip", moduleMetadata.ModuleId);
-            return null;
-        }
-        
-        // Now we write the module.json file to the module directory
-        await File.WriteAllTextAsync(Path.Combine(moduleDirectory, "module.json"), JsonConvert.SerializeObject(moduleMetadata, Formatting.Indented));
-        
-        // Finally, we return the module's dll file name
-        return Path.Combine(moduleDirectory, moduleMetadata.DllFileName);
-    }
-
+    
     public async Task<string> InstallRemoteModule(TrackingModuleMetadata moduleMetadata)
     {
+        if (!Directory.Exists(Utils.CustomLibsDirectory))
+            Directory.CreateDirectory(Utils.CustomLibsDirectory);
+        
         // If our download type is not a .dll, we'll download to a temp directory and then extract to the modules directory
         // The module will be contained within a directory corresponding to the module's id which will contain the root of the zip, or the .dll directly
         // as well as a module.json file containing the metadata for the module so we can identify the currently installed version, as well as
@@ -142,7 +66,8 @@ public class ModuleInstaller
         // First we need to create the directory for the module. If it already exists, we'll delete it and start fresh.
         var moduleDirectory = Path.Combine(Utils.CustomLibsDirectory, moduleMetadata.ModuleId.ToString());
         UninstallModule(moduleMetadata);
-
+        Directory.CreateDirectory(moduleDirectory);
+        
         // Time to download the main files
         var downloadExtension = Path.GetExtension(moduleMetadata.DownloadUrl);
         if (downloadExtension != ".dll")
@@ -154,12 +79,22 @@ public class ModuleInstaller
             }
             Directory.CreateDirectory(tempDirectory);
             var tempZipPath = Path.Combine(tempDirectory, "module.zip");
-            await DownloadModuleToFile(moduleMetadata, tempZipPath);
+            await DownloadToFile(moduleMetadata, tempZipPath);
             ZipFile.ExtractToDirectory(tempZipPath, tempDirectory);
             
             // Delete our zip and copy over all files and folders to the new module directory while preserving the directory structure
             File.Delete(tempZipPath);
-            MoveDirectory(tempDirectory, moduleDirectory);
+            foreach (var file in Directory.GetFiles(tempDirectory, "*", SearchOption.AllDirectories))
+            {
+                var path = Path.GetDirectoryName(file);
+                var newPath = path?.Replace(tempDirectory, moduleDirectory);
+                if (newPath != null)
+                {
+                    Directory.CreateDirectory(newPath);
+                    File.Copy(file, Path.Combine(newPath, Path.GetFileName(file)), true);
+                }
+            }
+            Directory.Delete(tempDirectory, true);
             
             // We need to ensure a .dll name is valid in the RemoteTrackingModule model
             moduleMetadata.DllFileName ??= TryFindModuleDll(moduleDirectory, moduleMetadata);
@@ -174,8 +109,7 @@ public class ModuleInstaller
             moduleMetadata.DllFileName ??= Path.GetFileName(moduleMetadata.DownloadUrl);
             var dllPath = Path.Combine(moduleDirectory, moduleMetadata.DllFileName);
             
-            Directory.CreateDirectory(moduleDirectory);
-            await DownloadModuleToFile(moduleMetadata, dllPath);
+            await DownloadToFile(moduleMetadata, dllPath);
             
             _logger.LogDebug("Downloaded module {module} to {dllPath}", moduleMetadata.ModuleId, dllPath);
         }

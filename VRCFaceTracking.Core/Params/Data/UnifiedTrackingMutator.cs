@@ -14,7 +14,7 @@ namespace VRCFaceTracking
     public class UnifiedTrackingMutator : INotifyPropertyChanged
     {
         private UnifiedTrackingData trackingDataBuffer = new();
-        public UnifiedMutationConfig mutationData = new();
+        public UnifiedMutationConfig mutationData;
 
         private float _calibrationWeight;
         public float CalibrationWeight
@@ -50,7 +50,7 @@ namespace VRCFaceTracking
             _dispatcherService = dispatcherService;
             _localSettingsService = localSettingsService;
             
-            Enabled = false;
+            Enabled = true;
             ContinuousCalibration = true;
             CalibrationWeight = 0.2f;
         }
@@ -106,7 +106,7 @@ namespace VRCFaceTracking
         /// <returns> Mutated Expression Data. </returns>
         public UnifiedTrackingData MutateData(UnifiedTrackingData input)
         {
-            if (!Enabled && SmoothingMode == false)
+            if (SmoothingMode == false && !Enabled)
                 return input;
 
             UnifiedTrackingData inputBuffer = new UnifiedTrackingData();
@@ -174,24 +174,17 @@ namespace VRCFaceTracking
                 mutationData.ShapeMutations[i].SmoothnessMult = setValue;
         }
 
-        public async Task SaveCalibration()
+        public void SaveCalibration()
         {
             _logger.LogDebug("Saving configuration...");
-            await _localSettingsService.SaveSettingAsync("CalibrationEnabled", Enabled);
-            await _localSettingsService.SaveSettingAsync("CalibrationWeight", CalibrationWeight);
-            await _localSettingsService.SaveSettingAsync("ContinuousCalibrationEnabled", ContinuousCalibration);
-            await _localSettingsService.SaveSettingAsync("Mutations", mutationData, true);
+            _localSettingsService.SaveSettingAsync("Mutation", mutationData).Wait();
         }
 
         public async void LoadCalibration()
         {
             // Try to load config and propogate data into Unified if they exist.
             _logger.LogDebug("Reading configuration...");
-            Enabled = await _localSettingsService.ReadSettingAsync<bool>("CalibrationEnabled");
-            CalibrationWeight = await _localSettingsService.ReadSettingAsync<float>("CalibrationWeight", 0.2f);
-            ContinuousCalibration = await _localSettingsService.ReadSettingAsync<bool>("ContinuousCalibrationEnabled", true);
-            mutationData = await _localSettingsService.ReadSettingAsync<UnifiedMutationConfig>("Mutation", new());
-            _logger.LogDebug("Configuration loaded.");
+            mutationData = await _localSettingsService.ReadSettingAsync<UnifiedMutationConfig>("Mutation");
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

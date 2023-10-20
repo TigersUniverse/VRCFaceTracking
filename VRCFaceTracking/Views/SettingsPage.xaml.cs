@@ -1,4 +1,5 @@
-﻿using Windows.Storage;
+﻿using System.Diagnostics;
+using Windows.Storage;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -37,19 +38,19 @@ public sealed partial class SettingsPage : Page
     {
         get;
     }
-    
+
     public SettingsPage()
     {
         ViewModel = App.GetService<SettingsViewModel>();
         OscViewModel = App.GetService<OscViewModel>();
         CalibrationSettings = App.GetService<UnifiedTrackingMutator>();
         RiskySettingsViewModel = App.GetService<RiskySettingsViewModel>();
-
+        
         Loaded += OnPageLoaded;
         InitializeComponent();
     }
 
-    private async void OnPageLoaded(object sender, RoutedEventArgs e)
+    private void OnPageLoaded(object sender, RoutedEventArgs e)
     {
         var currentTheme = ViewModel.ElementTheme;
         switch (currentTheme)
@@ -65,6 +66,9 @@ public sealed partial class SettingsPage : Page
 
     private async void bugRequestCard_Click(object sender, RoutedEventArgs e)
     => await Launcher.LaunchUriAsync(new Uri("https://github.com/benaclejames/VRCFaceTracking/issues/new/choose"));
+    
+    private async void openLocalFolder_OnClick(object sender, RoutedEventArgs e)
+        => await Launcher.LaunchFolderAsync(await StorageFolder.GetFolderFromPathAsync(Utils.PersistentDataDirectory));
 
     private void themeMode_SelectionChanged(object sender, RoutedEventArgs e)
     {
