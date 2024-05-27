@@ -1,4 +1,5 @@
 ﻿using System.IO.Compression;
+using System.Net;
 using FindClosestString;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -17,11 +18,16 @@ public class ModuleInstaller
 
     private async Task DownloadToFile(TrackingModuleMetadata moduleMetadata, string filePath)
     {
+#if NETFRAMEWORK
+        using var client = new WebClient();
+        await client.DownloadFileTaskAsync(moduleMetadata.DownloadUrl, filePath);
+#else
         using var client = new HttpClient();
         var response = await client.GetAsync(moduleMetadata.DownloadUrl);
         var content = await response.Content.ReadAsByteArrayAsync();
         await File.WriteAllBytesAsync(filePath, content);
         await Task.CompletedTask;
+#endif
     }
 
     private string TryFindModuleDll(string moduleDirectory, TrackingModuleMetadata moduleMetadata)
@@ -116,7 +122,11 @@ public class ModuleInstaller
         
         // Now we can overwrite the module.json file with the latest metadata
         var moduleJsonPath = Path.Combine(moduleDirectory, "module.json");
+#if NETFRAMEWORK
+        File.WriteAllText(moduleJsonPath, JsonConvert.SerializeObject(moduleMetadata, Formatting.Indented));
+#else
         await File.WriteAllTextAsync(moduleJsonPath, JsonConvert.SerializeObject(moduleMetadata, Formatting.Indented));
+#endif
         
         _logger.LogInformation("Installed module {module} to {moduleDirectory}", moduleMetadata.ModuleId, moduleDirectory);
         

@@ -140,7 +140,7 @@ public class UnifiedLibManager : ILibManager
                 //var alc = new AssemblyLoadContext(dll, true);
 #if NET5_0_OR_GREATER
                 var asl = new ASL(dll, true);
-#elif NETSTANDARD
+#elif NETSTANDARD || NETFRAMEWORK
                 var asl = new ASL();
 #endif
                 var loaded = asl.LoadFile(dll);

@@ -1,9 +1,14 @@
 ﻿using System.Reflection;
+#if !NETFRAMEWORK
 using System.Runtime.Loader;
+#endif
 
 namespace VRCFaceTracking.Core.Library;
 
-public class ASL : AssemblyLoadContext
+public class ASL 
+#if !NETFRAMEWORK
+: AssemblyLoadContext 
+#endif
 {
     private AppDomain appDomain;
     private Assembly _;
@@ -17,8 +22,12 @@ public class ASL : AssemblyLoadContext
         Assembly = LoadFromAssemblyPath(filePath);
         return Assembly;
     }
-#elif NETSTANDARD
-    protected override Assembly Load(AssemblyName assemblyName)
+#elif NETSTANDARD || NETFRAMEWORK
+    protected 
+#if !NETFRAMEWORK
+        override 
+#endif
+        Assembly Load(AssemblyName assemblyName)
     {
         appDomain = AppDomain.CreateDomain(assemblyName.Name);
         _ = Assembly.Load(assemblyName);
@@ -36,7 +45,7 @@ public class ASL : AssemblyLoadContext
 #if NET5_0_OR_GREATER
     public ASL(string dll, bool sumn) : base(dll, sumn){}
     public void UnloadAssembly() => Unload();
-#elif NETSTANDARD
+#elif NETSTANDARD || NETFRAMEWORK
     public void UnloadAssembly() => AppDomain.Unload(appDomain);
 #endif
 }

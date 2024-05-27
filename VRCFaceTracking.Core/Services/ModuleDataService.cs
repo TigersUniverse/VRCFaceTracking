@@ -27,10 +27,16 @@ public class ModuleDataService : IModuleDataService
     {
         // This is where we make the actual request to the API at https://rjlk4u22t36tvqz3bvbkwv675a0wbous.lambda-url.us-east-1.on.aws/modules
         // and get the list of modules.
+#if NETFRAMEWORK
+        using var client = new WebClient();
+        var content = client.DownloadString("https://rjlk4u22t36tvqz3bvbkwv675a0wbous.lambda-url.us-east-1.on.aws/modules");
+        return JsonConvert.DeserializeObject<List<InstallableTrackingModule>>(content);
+#else
         var client = new HttpClient();
         var response = client.GetAsync("https://rjlk4u22t36tvqz3bvbkwv675a0wbous.lambda-url.us-east-1.on.aws/modules").Result;
         var content = response.Content.ReadAsStringAsync().Result;
         return JsonConvert.DeserializeObject<List<InstallableTrackingModule>>(content);
+#endif
     }
 
     public async Task<IEnumerable<InstallableTrackingModule>> GetRemoteModules()
@@ -46,6 +52,16 @@ public class ModuleDataService : IModuleDataService
         if (_identityService == null)
             return null;
         // send a PATCH request to https://rjlk4u22t36tvqz3bvbkwv675a0wbous.lambda-url.us-east-1.on.aws/downloads with the module ID in the body
+#if NETFRAMEWORK
+        using var client = new WebClient();
+        var rating = new RatingObject
+            { UserId = _identityService.GetUniqueUserId(), ModuleId = moduleMetadata.ModuleId.ToString() };
+        var content = JsonConvert.SerializeObject(rating);
+        client.UploadString("https://rjlk4u22t36tvqz3bvbkwv675a0wbous.lambda-url.us-east-1.on.aws/downloads", "PATCH",
+            content);
+        // TODO: Error Handling
+        return Task.CompletedTask;
+#else
         var client = new HttpClient();
         var rating = new RatingObject
             { UserId = _identityService.GetUniqueUserId(), ModuleId = moduleMetadata.ModuleId.ToString() };
@@ -63,6 +79,7 @@ public class ModuleDataService : IModuleDataService
             return Task.CompletedTask;
         }
         return Task.CompletedTask;
+#endif
     }
 
     public IEnumerable<InstallableTrackingModule> GetLegacyModules()
@@ -101,6 +118,16 @@ public class ModuleDataService : IModuleDataService
             return async;
         }
 
+#if NETFRAMEWORK
+        using var client = new WebClient();
+        var rating = new RatingObject
+            { UserId = _identityService.GetUniqueUserId(), ModuleId = moduleMetadata.ModuleId.ToString() };
+        var content = JsonConvert.SerializeObject(rating);
+        var response =
+            client.UploadString("https://rjlk4u22t36tvqz3bvbkwv675a0wbous.lambda-url.us-east-1.on.aws/rating",
+                WebRequestMethods.Http.Get, content);
+        var ratingResponse = JsonConvert.DeserializeObject<RatingObject>(response);
+#else
         var client = new HttpClient();
         var rating = new RatingObject
             { UserId = _identityService.GetUniqueUserId(), ModuleId = moduleMetadata.ModuleId.ToString() };
@@ -121,6 +148,7 @@ public class ModuleDataService : IModuleDataService
         }
 
         var ratingResponse = JsonConvert.DeserializeObject<RatingObject>(response.Content.ReadAsStringAsync().Result);
+#endif
         
         _logger.LogDebug("Rating for {ModuleId} was {Rating}. Caching...", moduleMetadata.ModuleId, ratingResponse.Rating);
         _ratingCache[moduleMetadata.ModuleId] = ratingResponse.Rating;
@@ -132,10 +160,20 @@ public class ModuleDataService : IModuleDataService
         if (_identityService == null)
             return null;
         // Same format as get but we PUT this time
-        var client = new HttpClient();
+#if NETFRAMEWORK
+        using var client = new WebClient();
         var ratingObject = new RatingObject{UserId = _identityService.GetUniqueUserId(), ModuleId = moduleMetadata.ModuleId.ToString(), Rating = rating};
+        var content = JsonConvert.SerializeObject(ratingObject);
+        client.UploadString("https://rjlk4u22t36tvqz3bvbkwv675a0wbous.lambda-url.us-east-1.on.aws/rating",
+            WebRequestMethods.Http.Put, content);
+        return Task.CompletedTask;
+#else
+        var client = new HttpClient();
+        var ratingObject = new RatingObject{UserId = _identityService.GetUniqueUserId(), ModuleId =
+ moduleMetadata.ModuleId.ToString(), Rating = rating};
         var content = new StringContent(JsonConvert.SerializeObject(ratingObject), Encoding.UTF8, "application/json");
-        var response = client.PutAsync("https://rjlk4u22t36tvqz3bvbkwv675a0wbous.lambda-url.us-east-1.on.aws/rating", content).Result;
+        var response =
+ client.PutAsync("https://rjlk4u22t36tvqz3bvbkwv675a0wbous.lambda-url.us-east-1.on.aws/rating", content).Result;
         if (response.StatusCode != HttpStatusCode.OK)
         {
             _logger.LogError("Failed to set rating for {ModuleId} to {Rating}. Status code: {StatusCode}", moduleMetadata.ModuleId, rating, response.StatusCode);
@@ -144,6 +182,7 @@ public class ModuleDataService : IModuleDataService
         _logger.LogDebug("Rating for {ModuleId} was set to {Rating}. Caching...", moduleMetadata.ModuleId, rating);
         _ratingCache[moduleMetadata.ModuleId] = rating;
         return Task.CompletedTask;
+#endif
     }
 
     public IEnumerable<InstallableTrackingModule> GetInstalledModules()
